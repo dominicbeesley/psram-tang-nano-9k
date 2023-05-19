@@ -6,23 +6,30 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.std_logic_misc.all;
+use std.textio.all;
 
 library work;
 
 entity test_tb is
-	generic (runner_cfg : string);
+	generic (
+		runner_cfg : string;
+		FREQ 	: in integer := 96000000;               -- Actual clk frequency, to time 150us initialization delay
+		LATENCY : in integer := 4                       -- tACC (Initial Latency) in W955D8MBYA datasheet:
+		);
 end test_tb;
 
 architecture rtl of test_tb is
 
-	constant CLOCKSPEED : natural := 27;
-
-	constant CLOCK_PER : time := (1000000/CLOCKSPEED) * 1 ps;
-
-	signal i_LED		: std_logic_vector(5 downto 0);
-	signal i_SER_TX 	: std_logic;
-	signal i_BRD_CLK	: std_logic;
-	signal i_SYS_RESn	: std_logic;
+    signal i_clk           : std_logic;
+    signal i_clk_p         : std_logic;
+    signal i_resetn        : std_logic;
+    signal i_read          : std_logic;
+    signal i_write         : std_logic;
+    signal i_addr          : std_logic_vector(21 downto 0);
+    signal i_din           : std_logic_vector(15 downto 0);
+    signal i_byte_write    : std_logic;
+    signal i_dout          : std_logic_vector(15 downto 0);
+    signal i_busy          : std_logic;
 
 	signal i_O_psram_ck			: std_logic_vector(1 downto 0);
 	signal i_O_psram_ck_n		: std_logic_vector(1 downto 0);
@@ -33,18 +40,79 @@ architecture rtl of test_tb is
 
 	signal i_GSRI				: std_logic;
 
+
 begin
-	p_syscon_clk:process
+	p_clk:process
+	constant PER4 : time := 250000 us / FREQ;
 	begin
-		i_BRD_CLK <= '1';
-		wait for CLOCK_PER / 2;
-		i_BRD_CLK <= '0';
-		wait for CLOCK_PER / 2;
+		i_clk <= '0';
+		wait for PER4;
+		i_clk_p <= '0';
+		wait for PER4;
+		i_clk <= '1';
+		wait for PER4;
+		i_clk_p <= '1';
+		wait for PER4;
 	end process;
 
 
 	p_main:process
 	variable v_time:time;
+
+	procedure DO_INIT is
+	begin
+
+		wait for 1 us;
+		i_resetn <= '0';
+		i_GSRI <= '0';
+		i_read <= '0';
+		i_write <= '0';
+		i_addr <= (others => '0');
+		i_din <= (others => '0');
+		wait for 10 us;
+		i_resetn <= '1';
+		i_GSRI <= '1';
+		wait until i_busy = '0';
+
+	end procedure;
+
+	procedure DO_WRITE_BYTE(address : integer; data : integer) is
+	begin
+		
+
+
+		i_addr <= std_logic_vector(to_unsigned(address, i_addr'length));
+		i_din <= "00000000" & std_logic_vector(to_unsigned(data, 8));
+		i_read <= '0';
+		i_write <= '1';
+		i_byte_write <= '1';
+		wait until rising_edge(i_clk) and i_busy = '0';
+		i_write <= '0';
+
+	end procedure;
+
+	procedure DO_READ_BYTE(address : integer; data : out integer) is
+	begin
+		
+		i_addr <= std_logic_vector(to_unsigned(address, i_addr'length));
+		i_read <= '1';
+		i_write <= '0';
+		i_byte_write <= '1';
+		wait until rising_edge(i_clk) and i_busy = '0';
+		i_read <= '0';
+		wait until i_busy = '0';
+		data := to_integer(unsigned(i_dout(7 downto 0)));
+
+	end procedure;
+
+	procedure DO_READ_BYTE_C(address : integer; expect_data : integer) is
+	variable D:integer;
+	begin
+		DO_READ_BYTE(address, D);
+		assert D = expect_data report "read address " & to_hstring(to_unsigned(address, 21)) & " returned " & to_hstring(to_unsigned(D, 8)) & " expected " & to_hstring(to_unsigned(expect_data, 8));
+	end procedure;
+
+
 	begin
 
 		test_runner_setup(runner, runner_cfg);
@@ -52,15 +120,15 @@ begin
 
 		while test_suite loop
 
-			if run("boop") then
+			if run("read then write") then
 
-				i_SYS_RESn <= '0';
-				i_GSRI <= '0';
-				wait for 69 us; -- must be > pll lock time
-				i_SYS_RESn <= '1';
-				i_GSRI <= '1';
+				DO_INIT;
+				DO_WRITE_BYTE(16#100#, 16#A0#);
+				DO_WRITE_BYTE(16#200#, 16#5A#);
+				DO_READ_BYTE_C(16#100#, 16#A0#);
+				DO_READ_BYTE_C(16#200#, 16#5A#);
 
-				wait for 500 us;
+				wait for 1 us;
 
 			end if;
 
@@ -72,26 +140,30 @@ begin
 		test_runner_cleanup(runner); -- Simulation ends here
 	end process;
 
-	e_dut:entity work.memory_test
-	generic map (
-		NO_PAUSE	=> 1
-		)
-	port map (
+	e_dut:entity work.PsramController
+    generic map (
+        FREQ          => FREQ,
+        LATENCY       => LATENCY				-- 3 (max 83Mhz), 4 (max 104Mhz), 5 (max 133Mhz) or 6 (max 166Mhz)
+        )
+    port map (
+        clk           => i_clk,
+        clk_p         => i_clk_p,
+        resetn        => i_resetn,
+        read          => i_read,
+        write         => i_write,
+        addr          => i_addr,
+        din           => i_din,
+        byte_write    => i_byte_write,
 
-    sys_clk			=> i_BRD_CLK,
-    sys_resetn		=> i_SYS_RESn,
-    button			=> '1',
+        dout          => i_dout,
+        busy          => i_busy,
 
-    led				=> i_LED,
-    uart_txp		=> i_SER_TX,
+        O_psram_ck		=> i_O_psram_ck,
+        IO_psram_rwds	=> i_IO_psram_rwds,
+        IO_psram_dq		=> i_IO_psram_dq,
+        O_psram_cs_n	=> i_O_psram_cs_n
+        );
 
-    O_psram_ck		=> i_O_psram_ck,
-    O_psram_ck_n	=> i_O_psram_ck_n,
-    IO_psram_rwds	=> i_IO_psram_rwds,
-    IO_psram_dq		=> i_IO_psram_dq,
-    O_psram_reset_n	=> i_O_psram_reset_n,
-    O_psram_cs_n	=> i_O_psram_cs_n
-	);
 
 	e_psram:entity work.s27kl0642
 	port map (
