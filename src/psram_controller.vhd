@@ -99,7 +99,7 @@ architecture behavioral of PsramController is
     signal ub                 : std_logic; -- 1 for upper byte
 
     signal w_din              : std_logic_vector(15 downto 0);
-    signal cycles_sr          : std_logic_vector(23 downto 0); -- shift register counting cycles
+    signal cycles_sr          : std_logic_vector(2+LATENCY*2 downto 0); -- shift register counting cycles
     signal dq_sr              : std_logic_vector(63 downto 0); -- shifts left 8-bit every cycle
 
     signal rst_cnt            : std_logic_vector(f_log2(INIT_TIME + 1) - 1 downto 0);
@@ -144,12 +144,12 @@ begin
     process (clk)
     begin
         if rising_edge(clk) then
-            cycles_sr <= cycles_sr(22 downto 0) & '0';
+            cycles_sr <= cycles_sr(cycles_sr'high-1 downto cycles_sr'low) & '0';
             dq_sr <= dq_sr(47 downto 0) & x"0000";          -- shift 16-bits each cycle
             ck_e_p <= ck_e;
 
             if state = INIT_ST and cfg_now = '1' then
-                cycles_sr <= x"000001";
+                cycles_sr <= (0 => '1', others => '0');
                 ram_cs_n <= '0';
                 state <= CONFIG_ST;
             end if;
@@ -162,7 +162,7 @@ begin
                 if cycles_sr(4) = '1' then
                     state <= IDLE_ST;
                     ck_e <= '0';
-                    cycles_sr <= x"000001";
+                    cycles_sr <= (0 => '1', others => '0');
                     dq_oen <= '1';
                     ram_cs_n <= '1';
                 end if;
@@ -180,7 +180,7 @@ begin
                     dq_oen <= '0';
                     wait_for_rd_data <= '0';
                     w_din <= din;
-                    cycles_sr <= x"000002";    -- start from cycle 1
+                    cycles_sr <= (1 => '1', others =>'0');    -- start from cycle 1
                     if write = '1' then
                         state <= WRITE_ST;
                     else
@@ -205,21 +205,22 @@ begin
             end if;
             if state = WRITE_ST then
                 if cycles_sr(5) = '1' then
-                    additional_latency <= rwds_in_fal;  -- sample RWDS to see if we need additional latency
+                    additional_latency <= IO_psram_rwds(0);  -- sample RWDS to see if we need additional latency, DB: don't pass through IDDR as then it is too late!
                     -- Write timing is trickier - we sample RWDS at cycle 5 to determine whether we need to wait another tACC.
                     -- If it is low, data starts at 2+LATENCY. If high, then data starts at 2+LATENCY*2.
-                    if (cycles_sr(2+LATENCY) = '1' and ((LATENCY = 3 and rwds_in_fal = '0') or (LATENCY /= 3 and additional_latency = '0'))) or (cycles_sr(2+LATENCY*2) = '1') then
-                        rwds_oen <= '0';
-                        if byte_write = '1' then       -- RWDS is data mask (1 means not writing)
-                            rwds_out_ris <= not addr(0);
-                            rwds_out_fal <= addr(0);
-                        else
-                            rwds_out_ris <= '0';
-                            rwds_out_fal <= '0';
-                        end if;
-                        dq_sr(63 downto 48) <= w_din;
-                        state <= IDLE_ST;
+                elsif 
+                        (cycles_sr(2+LATENCY) = '1' and additional_latency = '0') 
+                    or  (cycles_sr(2+LATENCY*2) = '1') then
+                    rwds_oen <= '0';
+                    if byte_write = '1' then       -- RWDS is data mask (1 means not writing)
+                        rwds_out_ris <= not addr(0);
+                        rwds_out_fal <= addr(0);
+                    else
+                        rwds_out_ris <= '0';
+                        rwds_out_fal <= '0';
                     end if;
+                    dq_sr(63 downto 48) <= w_din;
+                    state <= IDLE_ST;
                 end if;
             end if;
             if resetn = '0'then
