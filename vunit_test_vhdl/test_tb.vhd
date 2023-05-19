@@ -82,7 +82,7 @@ begin
 
 
 		i_addr <= std_logic_vector(to_unsigned(address, i_addr'length));
-		i_din <= "00000000" & std_logic_vector(to_unsigned(data, 8));
+		i_din <= std_logic_vector(to_unsigned(data, 8)) & std_logic_vector(to_unsigned(data, 8));
 		i_read <= '0';
 		i_write <= '1';
 		i_byte_write <= '1';
@@ -101,7 +101,11 @@ begin
 		wait until rising_edge(i_clk) and i_busy = '0';
 		i_read <= '0';
 		wait until i_busy = '0';
-		data := to_integer(unsigned(i_dout(7 downto 0)));
+		if to_unsigned(address,1) = "0" then
+			data := to_integer(unsigned(i_dout(15 downto 8)));
+		else
+			data := to_integer(unsigned(i_dout(7 downto 0)));
+		end if;
 
 	end procedure;
 
@@ -120,7 +124,7 @@ begin
 
 		while test_suite loop
 
-			if run("read then write") then
+			if run("write then read") then
 
 				DO_INIT;
 				DO_WRITE_BYTE(16#100#, 16#A0#);
@@ -130,8 +134,19 @@ begin
 
 				wait for 1 us;
 
-			end if;
+			elsif run("long write then read") then
 
+				DO_INIT;
+				for i in 100 to 200 loop
+					DO_WRITE_BYTE(i, i);
+				end loop;
+				for i in 100 to 200 loop
+					DO_READ_BYTE_C(i,i);
+				end loop;
+	
+				wait for 1 us;
+
+			end if;
 
 		end loop;
 
