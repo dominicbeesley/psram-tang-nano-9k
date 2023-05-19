@@ -208,7 +208,14 @@ begin
                     additional_latency <= IO_psram_rwds(0);  -- sample RWDS to see if we need additional latency, DB: don't pass through IDDR as then it is too late!
                     -- Write timing is trickier - we sample RWDS at cycle 5 to determine whether we need to wait another tACC.
                     -- If it is low, data starts at 2+LATENCY. If high, then data starts at 2+LATENCY*2.
-                elsif 
+                end if;
+                if cycles_sr(2+LATENCY-1) then
+                    --DB: apply correct rwds latency
+                    rwds_oen <= '0';
+                    rwds_out_ris <= '0';
+                    rwds_out_fal <= '0';
+                end if;
+                if 
                         (cycles_sr(2+LATENCY) = '1' and additional_latency = '0') 
                     or  (cycles_sr(2+LATENCY*2) = '1') then
                     rwds_oen <= '0';
