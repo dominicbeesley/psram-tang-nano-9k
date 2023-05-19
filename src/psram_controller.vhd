@@ -86,7 +86,7 @@ architecture behavioral of PsramController is
 
     signal CR_LATENCY : std_logic_vector(3 downto 0);
 
-    type state_type is (INIT_ST, CONFIG_ST, IDLE_ST, READ_ST, WRITE_ST);
+    type state_type is (INIT_ST, CONFIG_ST, IDLE_ST, READ_ST, WRITE_ST, WRITE_STOP_ST);
 
     signal state              : state_type;
 
@@ -148,12 +148,14 @@ begin
             dq_sr <= dq_sr(47 downto 0) & x"0000";          -- shift 16-bits each cycle
             ck_e_p <= ck_e;
 
-            if state = INIT_ST and cfg_now = '1' then
-                cycles_sr <= (0 => '1', others => '0');
-                ram_cs_n <= '0';
-                state <= CONFIG_ST;
-            end if;
-            if state = CONFIG_ST then
+            case state is
+            when INIT_ST =>
+                if cfg_now = '1' then
+                    cycles_sr <= (0 => '1', others => '0');
+                    ram_cs_n <= '0';
+                    state <= CONFIG_ST;            
+                end if;
+            when CONFIG_ST =>
                 if cycles_sr(0) = '1' then
                     dq_sr <= x"6000010000008f" & CR_LATENCY & x"7";      -- last byte, 'e' (3 cycle latency max 83Mhz), '7' (variable 1x/2x latency)
                     dq_oen <= '0';
@@ -166,8 +168,7 @@ begin
                     dq_oen <= '1';
                     ram_cs_n <= '1';
                 end if;
-            end if;
-            if state = IDLE_ST then
+            when IDLE_ST =>
                 rwds_oen <= '1';
                 ck_e <= '0';
                 ram_cs_n <= '1';
@@ -187,8 +188,7 @@ begin
                         state <= READ_ST;
                     end if;
                 end if;
-            end if;
-            if state = READ_ST then
+            when READ_ST =>
                 if cycles_sr(3) = '1' then
                     -- command sent, now wait for result
                     dq_oen <= '1';
@@ -202,8 +202,7 @@ begin
                     ck_e <= '0';
                     state <= IDLE_ST;
                 end if;
-            end if;
-            if state = WRITE_ST then
+            when WRITE_ST =>
                 if cycles_sr(5) = '1' then
                     additional_latency <= IO_psram_rwds(0);  -- sample RWDS to see if we need additional latency, DB: don't pass through IDDR as then it is too late!
                     -- Write timing is trickier - we sample RWDS at cycle 5 to determine whether we need to wait another tACC.
@@ -227,9 +226,15 @@ begin
                         rwds_out_fal <= '0';
                     end if;
                     dq_sr(63 downto 48) <= w_din;
-                    state <= IDLE_ST;
+                    state <= WRITE_STOP_ST;
                 end if;
-            end if;
+            when WRITE_STOP_ST =>
+                rwds_oen <= '1';
+                ram_cs_n <= '1';
+                ck_e <= '0';
+                state <= IDLE_ST;
+            end case;
+
             if resetn = '0'then
                 state <= INIT_ST;
                 ram_cs_n <= '1';
