@@ -136,13 +136,15 @@ always @(posedge clk) begin
 
         if (cycles_sr[5])
             additional_latency <= IO_psram_rwds[0];  // sample RWDS to see if we need additional latency
-        else if (cycles_sr[2+LATENCY-1])
+        
+        if (cycles_sr[2+LATENCY-1])
         begin
             rwds_oen <= 0;
             rwds_out_ris <= 1'b0;       // RWDS preamble
             rwds_out_fal <= 1'b0;
         end
-        else if ((cycles_sr[2+LATENCY] && ~additional_latency)
+        
+        if ((cycles_sr[2+LATENCY] && ~additional_latency)
             || cycles_sr[2+LATENCY*2]) begin
 //        else if(cycles_sr[2+LATENCY]) begin
             rwds_oen <= 0;
