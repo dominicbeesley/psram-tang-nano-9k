@@ -43,6 +43,17 @@ end PsramController;
 
 
 architecture behavioral of PsramController is
+    
+    function MAX(A:natural; B:natural) return natural is
+    begin
+        if A>B then
+            return A;
+        else
+            return B;
+        end if;
+    end function;
+
+
     component IDDR
 --        generic (
 --            Q0_INIT : bit := '0';
@@ -99,7 +110,7 @@ architecture behavioral of PsramController is
     signal ub                 : std_logic; -- 1 for upper byte
 
     signal w_din              : std_logic_vector(15 downto 0);
-    signal cycles_sr          : std_logic_vector(2+LATENCY*2 downto 0); -- shift register counting cycles
+    signal cycles_sr          : std_logic_vector(MAX(2+LATENCY*2,9) downto 0); -- shift register counting cycles
     signal dq_sr              : std_logic_vector(63 downto 0); -- shifts left 8-bit every cycle
 
     signal rst_cnt            : std_logic_vector(f_log2(INIT_TIME + 1) - 1 downto 0);
@@ -209,7 +220,7 @@ begin
                     -- If it is low, data starts at 2+LATENCY. If high, then data starts at 2+LATENCY*2.
                 end if;
                 if cycles_sr(2+LATENCY-1) then
-                    --DB: apply correct rwds latency
+                    --DB: apply correct rwds preamble
                     rwds_oen <= '0';
                     rwds_out_ris <= '0';
                     rwds_out_fal <= '0';
@@ -239,6 +250,8 @@ begin
                 state <= INIT_ST;
                 ram_cs_n <= '1';
                 ck_e <= '0';
+                additional_latency <= '0';
+                dout <= (others => '0');
             end if;
         end if;
     end process;
