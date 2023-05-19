@@ -88,6 +88,7 @@ begin
 		i_byte_write <= '1';
 		wait until rising_edge(i_clk) and i_busy = '0';
 		i_write <= '0';
+		wait until i_busy = '0';
 
 	end procedure;
 
@@ -102,9 +103,9 @@ begin
 		i_read <= '0';
 		wait until i_busy = '0';
 		if to_unsigned(address,1) = "0" then
-			data := to_integer(unsigned(i_dout(15 downto 8)));
-		else
 			data := to_integer(unsigned(i_dout(7 downto 0)));
+		else
+			data := to_integer(unsigned(i_dout(15 downto 8)));
 		end if;
 
 	end procedure;
@@ -137,9 +138,12 @@ begin
 			elsif run("long write then read") then
 
 				DO_INIT;
-				for i in 100 to 200 loop
+				for i in 100 to 202 loop
 					DO_WRITE_BYTE(i, i);
 				end loop;
+
+				wait for 1 us;
+
 				for i in 100 to 200 loop
 					DO_READ_BYTE_C(i,i);
 				end loop;
