@@ -23,15 +23,15 @@ lib.add_source_files("C:/Gowin/Gowin_V1.9.8.09_Education/IDE/simlib/gw1n/prim_si
 
 tb = lib.test_bench("test_tb")
 
-cfg = tb.add_config("latency_4", generics=dict(encoded_tb_cfg=encode(dict(
+cfg = tb.add_config("latency_4", generics=dict( \
 	LATENCY = 4, \
 	FREQ = 96000000 \
-	))))
+	))
 
-cfg2 = tb.add_config("latency_3", generics=dict(encoded_tb_cfg=encode(dict(
+cfg2 = tb.add_config("latency_3", generics=dict( \
 	LATENCY = 3, \
 	FREQ  = 81000000 \
-	))))
+	))
 
 # Run vunit function
 vu.main()
