@@ -23,6 +23,16 @@ lib.add_source_files("C:/Gowin/Gowin_V1.9.8.09_Education/IDE/simlib/gw1n/prim_si
 
 tb = lib.test_bench("test_tb")
 
+cfg = tb.add_config("latency_6", generics=dict( \
+	LATENCY = 6, \
+	FREQ = 166000000 \
+	))
+
+cfg = tb.add_config("latency_5", generics=dict( \
+	LATENCY = 5, \
+	FREQ = 133000000 \
+	))
+
 cfg = tb.add_config("latency_4", generics=dict( \
 	LATENCY = 4, \
 	FREQ = 96000000 \

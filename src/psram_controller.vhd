@@ -136,8 +136,12 @@ architecture behavioral of PsramController is
 
     signal dq_out_tbuf        : std_logic_vector(7 downto 0);
     signal dq_oen_tbuf        : std_logic_vector(7 downto 0);
+    
+    signal i_write_cycle_active : std_logic;
 
 begin
+
+    assert LATENCY >= 3 and LATENCY <= 6 report "LATENCY must be >= 3 and <= 5";
 
     dq_out_ris <= dq_sr(63 downto 56);
     dq_out_fal <= dq_sr(55 downto 48);
@@ -150,6 +154,18 @@ begin
                   "1110";
 
     busy <= '0' when state = IDLE_ST else '1';
+
+    -- LATENCY 3 requires special case, x2 indication from rwds is same cycle as write
+    g_wL3_1:if LATENCY = 3 generate
+        i_write_cycle_active <= '1' when cycles_sr(2+LATENCY) = '1' and IO_psram_rwds(0) = '0' else
+                                '1' when cycles_sr(2+LATENCY*2) = '1' else
+                                '0';
+    end generate;
+    g_wL3_2:if LATENCY /=3 generate
+        i_write_cycle_active <= '1' when cycles_sr(2+LATENCY) = '1' and additional_latency = '0' else
+                                '1' when cycles_sr(2+LATENCY*2) = '1' else
+                                '0';
+    end generate;
 
     -- Main FSM for HyperRAM read/write
     process (clk)
@@ -214,10 +230,12 @@ begin
                     state <= IDLE_ST;
                 end if;
             when WRITE_ST =>
-                if cycles_sr(5) = '1' then
-                    additional_latency <= IO_psram_rwds(0);  -- sample RWDS to see if we need additional latency, DB: don't pass through IDDR as then it is too late!
-                    -- Write timing is trickier - we sample RWDS at cycle 5 to determine whether we need to wait another tACC.
-                    -- If it is low, data starts at 2+LATENCY. If high, then data starts at 2+LATENCY*2.
+                if LATENCY /= 3 then
+                    if cycles_sr(5) = '1' then
+                        additional_latency <= IO_psram_rwds(0);  -- sample RWDS to see if we need additional latency, DB: don't pass through IDDR as then it is too late!
+                        -- Write timing is trickier - we sample RWDS at cycle 5 to determine whether we need to wait another tACC.
+                        -- If it is low, data starts at 2+LATENCY. If high, then data starts at 2+LATENCY*2.
+                    end if;
                 end if;
                 if cycles_sr(2+LATENCY-1) then
                     --DB: apply correct rwds preamble
@@ -225,9 +243,7 @@ begin
                     rwds_out_ris <= '0';
                     rwds_out_fal <= '0';
                 end if;
-                if 
-                        (cycles_sr(2+LATENCY) = '1' and additional_latency = '0') 
-                    or  (cycles_sr(2+LATENCY*2) = '1') then
+                if i_write_cycle_active = '1' then
                     rwds_oen <= '0';
                     if byte_write = '1' then       -- RWDS is data mask (1 means not writing)
                         rwds_out_ris <= not addr(0);
