@@ -25,22 +25,26 @@ tb = lib.test_bench("test_tb")
 
 cfg = tb.add_config("latency_6", generics=dict( \
 	LATENCY = 6, \
-	FREQ = 166000000 \
+	FREQ = 166000000, \
+	PHASE = 30.0 \
 	))
 
 cfg = tb.add_config("latency_5", generics=dict( \
 	LATENCY = 5, \
-	FREQ = 133000000 \
+	FREQ = 133000000, \
+	PHASE = 60.0 \
 	))
 
 cfg = tb.add_config("latency_4", generics=dict( \
 	LATENCY = 4, \
-	FREQ = 96000000 \
+	FREQ = 96000000, \
+	PHASE = 90.0 \
 	))
 
 cfg2 = tb.add_config("latency_3", generics=dict( \
 	LATENCY = 3, \
-	FREQ  = 81000000 \
+	FREQ  = 81000000, \
+	PHASE = 90.0 \
 	))
 
 # Run vunit function

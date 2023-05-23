@@ -14,7 +14,8 @@ entity test_tb is
 	generic (
 		runner_cfg : string;
 		FREQ 	: in integer := 96000000;               -- Actual clk frequency, to time 150us initialization delay
-		LATENCY : in integer := 4                       -- tACC (Initial Latency) in W955D8MBYA datasheet:
+		LATENCY : in integer := 4;                      -- tACC (Initial Latency) in W955D8MBYA datasheet:
+		PHASE   : in real := 90.0						-- degrees of phase lag for clk_p
 		);
 end test_tb;
 
@@ -40,21 +41,19 @@ architecture rtl of test_tb is
 
 	signal i_GSRI				: std_logic;
 
+	constant t_PER_lag : time := (1000000 us / FREQ) * (PHASE / 360.0);
 
 begin
 	p_clk:process
-	constant PER4 : time := 250000 us / FREQ;
+	constant PER2 : time := 500000 us / FREQ;
 	begin
 		i_clk <= '0';
-		wait for PER4;
-		i_clk_p <= '0';
-		wait for PER4;
+		wait for PER2;
 		i_clk <= '1';
-		wait for PER4;
-		i_clk_p <= '1';
-		wait for PER4;
+		wait for PER2;
 	end process;
 
+	i_clk_p <= transport i_clk after t_PER_lag;
 
 	p_main:process
 	variable v_time:time;
