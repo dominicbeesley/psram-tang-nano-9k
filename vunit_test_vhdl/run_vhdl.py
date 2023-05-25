@@ -47,5 +47,13 @@ cfg2 = tb.add_config("latency_3", generics=dict( \
 	PHASE = 90.0 \
 	))
 
+cfg = tb.add_config("latency_4_cs_delay", generics=dict( \
+	LATENCY = 4, \
+	FREQ = 96000000, \
+	PHASE = 90.0, \
+	CS_DELAY = True
+	))
+
+
 # Run vunit function
 vu.main()

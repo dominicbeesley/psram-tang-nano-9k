@@ -15,7 +15,8 @@ entity test_tb is
 		runner_cfg : string;
 		FREQ 	: in integer := 96000000;               -- Actual clk frequency, to time 150us initialization delay
 		LATENCY : in integer := 4;                      -- tACC (Initial Latency) in W955D8MBYA datasheet:
-		PHASE   : in real := 90.0						-- degrees of phase lag for clk_p
+		PHASE   : in real := 90.0;						-- degrees of phase lag for clk_p
+		CS_DELAY: in boolean := false
 		);
 end test_tb;
 
@@ -161,7 +162,8 @@ begin
 	e_dut:entity work.PsramController
     generic map (
         FREQ          => FREQ,
-        LATENCY       => LATENCY				-- 3 (max 83Mhz), 4 (max 104Mhz), 5 (max 133Mhz) or 6 (max 166Mhz)
+        LATENCY       => LATENCY,				-- 3 (max 83Mhz), 4 (max 104Mhz), 5 (max 133Mhz) or 6 (max 166Mhz)
+        CS_DELAY	  => CS_DELAY
         )
     port map (
         clk           => i_clk,
